@@ -1,0 +1,19 @@
+venv/
+backend/venv/
+backend/.env
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.idea/
+.vscode/
+.DS_Store
+
+# Frontend (added Phase 5)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Model cache (never commit downloaded weights)
+**/saved_model/
+**/*.bin
+**/*.safetensors
