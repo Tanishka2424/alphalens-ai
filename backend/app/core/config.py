@@ -21,7 +21,12 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # ML model identifiers (HuggingFace hub IDs)
+    # FinBERT (Phase 1)
     FINBERT_MODEL_NAME: str = "ProsusAI/finbert"
+
+    # Credibility classifier (Phase 2) - local fine-tuned checkpoint, not a
+    # Hugging Face hub model. Path is relative to the backend/ working dir.
+    CREDIBILITY_MODEL_PATH: str = "training/checkpoints/credibility_classifier"
 
     # Inference device: "cpu" or "cuda"
     DEVICE: str = "cpu"

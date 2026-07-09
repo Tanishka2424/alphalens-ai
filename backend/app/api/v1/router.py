@@ -7,11 +7,11 @@ include it. main.py never needs to change again.
 """
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import sentiment
+from app.api.v1.endpoints import credibility, sentiment
 
 api_router = APIRouter()
 api_router.include_router(sentiment.router)
+api_router.include_router(credibility.router)
 
-# Phase 2+: api_router.include_router(credibility.router)
 # Phase 3+: api_router.include_router(retrieval.router)
 # Phase 4+: api_router.include_router(consensus.router)
