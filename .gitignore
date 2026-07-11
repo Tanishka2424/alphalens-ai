@@ -17,3 +17,5 @@ frontend/.env
 **/saved_model/
 **/*.bin
 **/*.safetensors
+backend/training/vector_store/**
+backend/training/data/SEntFiN-v1.1.csv

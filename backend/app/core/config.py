@@ -27,7 +27,9 @@ class Settings(BaseSettings):
     # Credibility classifier (Phase 2) - local fine-tuned checkpoint, not a
     # Hugging Face hub model. Path is relative to the backend/ working dir.
     CREDIBILITY_MODEL_PATH: str = "training/checkpoints/credibility_classifier"
-
+    # Semantic retrieval (Phase 3)
+    EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
+    VECTOR_STORE_PATH: str = "training/vector_store"
     # Inference device: "cpu" or "cuda"
     DEVICE: str = "cpu"
 
