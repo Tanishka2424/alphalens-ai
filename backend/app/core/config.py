@@ -33,8 +33,10 @@ class Settings(BaseSettings):
     # Inference device: "cpu" or "cuda"
     DEVICE: str = "cpu"
     # Consensus reasoning (Phase 4)
+    # Consensus reasoning (Phase 4)
     OPENAI_API_KEY: str | None = None
     OPENAI_MODEL_NAME: str = "gpt-4o-mini"
+    OPENAI_BASE_URL: str | None = None  # set to use an OpenAI-compatible provider (e.g. Groq) instead
 
 
 # Singleton settings instance imported everywhere else

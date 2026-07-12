@@ -58,7 +58,7 @@ def analyze_consensus_llm(text: str, top_k: int) -> ConsensusResponse:
         related_titles.append(m.title)
 
     try:
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        client = OpenAI(api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL)
         response = client.chat.completions.create(
             model=settings.OPENAI_MODEL_NAME,
             messages=[
@@ -66,7 +66,9 @@ def analyze_consensus_llm(text: str, top_k: int) -> ConsensusResponse:
                 {"role": "user", "content": _build_user_prompt(text, related_titles)},
             ],
             temperature=0.2,
-            max_tokens=300,
+            max_tokens=800,  # reasoning models (e.g. gpt-oss-120b) spend part of this
+                              # budget on internal reasoning before the visible JSON answer -
+                              # 300 was too low and caused truncated/invalid JSON in testing
         )
         raw_content = response.choices[0].message.content
     except Exception as e:
