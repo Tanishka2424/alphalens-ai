@@ -8,8 +8,8 @@ Design notes (useful for interview defense):
   independent of the web framework, so it's unit-testable on its own and
   reusable if the API layer ever changes.
 """
+import threading
 import time
-
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
@@ -37,23 +37,31 @@ class SentimentService:
     def __init__(self) -> None:
         self._tokenizer = None
         self._model = None
+        self._lock = threading.Lock()
         self._device = torch.device(
             settings.DEVICE if torch.cuda.is_available() or settings.DEVICE == "cpu" else "cpu"
         )
 
     def _ensure_loaded(self) -> None:
-        """Lazy-load the model on first use, not at import time."""
+        """Lazy-load the model on first use, not at import time. Thread-safe:
+        this singleton is shared between /sentiment/analyze and the
+        consensus fallback path, which can be called concurrently from the
+        frontend's parallel requests - a race here caused a real crash in
+        the sibling retrieval_service, fixed the same way here."""
         if self._model is not None:
             return
 
-        logger.info(f"Loading FinBERT model '{settings.FINBERT_MODEL_NAME}' onto {self._device}...")
-        self._tokenizer = AutoTokenizer.from_pretrained(settings.FINBERT_MODEL_NAME)
-        self._model = AutoModelForSequenceClassification.from_pretrained(
-            settings.FINBERT_MODEL_NAME
-        )
-        self._model.to(self._device)
-        self._model.eval()
-        logger.info("FinBERT model loaded successfully.")
+        with self._lock:
+            if self._model is not None:
+                return
+
+            logger.info(f"Loading FinBERT model '{settings.FINBERT_MODEL_NAME}' onto {self._device}...")
+            self._tokenizer = AutoTokenizer.from_pretrained(settings.FINBERT_MODEL_NAME)
+            model = AutoModelForSequenceClassification.from_pretrained(settings.FINBERT_MODEL_NAME)
+            model.to(self._device)
+            model.eval()
+            self._model = model
+            logger.info("FinBERT model loaded successfully.")
 
     def predict(self, text: str) -> SentimentResponse:
         self._ensure_loaded()

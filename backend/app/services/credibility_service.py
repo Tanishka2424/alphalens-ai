@@ -14,7 +14,7 @@ not used alone.
 """
 import os
 import time
-
+import threading
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
@@ -31,25 +31,32 @@ class CredibilityClassifierService:
     def __init__(self) -> None:
         self._tokenizer = None
         self._model = None
+        self._lock = threading.Lock()
+
         self._device = torch.device("cpu")
 
     def _ensure_loaded(self) -> None:
         if self._model is not None:
             return
 
-        model_path = settings.CREDIBILITY_MODEL_PATH
-        if not os.path.isdir(model_path):
-            raise FileNotFoundError(
-                f"Credibility model not found at '{model_path}'. Did you download "
-                f"the fine-tuned checkpoint from Colab and place it there?"
-            )
+        with self._lock:
+            if self._model is not None:
+                return
 
-        logger.info(f"Loading credibility classifier from '{model_path}'...")
-        self._tokenizer = AutoTokenizer.from_pretrained(model_path)
-        self._model = AutoModelForSequenceClassification.from_pretrained(model_path)
-        self._model.to(self._device)
-        self._model.eval()
-        logger.info("Credibility classifier loaded successfully.")
+            model_path = settings.CREDIBILITY_MODEL_PATH
+            if not os.path.isdir(model_path):
+                raise FileNotFoundError(
+                    f"Credibility model not found at '{model_path}'. Did you download "
+                    f"the fine-tuned checkpoint from Colab and place it there?"
+                )
+
+            logger.info(f"Loading credibility classifier from '{model_path}'...")
+            self._tokenizer = AutoTokenizer.from_pretrained(model_path)
+            model = AutoModelForSequenceClassification.from_pretrained(model_path)
+            model.to(self._device)
+            model.eval()
+            self._model = model
+            logger.info("Credibility classifier loaded successfully.")
 
     def predict(self, text: str) -> ClassifierResponse:
         self._ensure_loaded()
