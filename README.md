@@ -1,15 +1,15 @@
 # AlphaLens AI
 
-I built this as a portfolio project while prepping for campus placements. It's an AI-powered financial news intelligence platform — you give it a headline or article, and it looks at it from four different angles at once: what's the market tone, how trustworthy does it look, what else has been reported on the same topic, and do those other sources actually agree with it.
+I built this as a portfolio project while prepping for campus placements. It's an AI-powered financial news intelligence platform, you give it a headline or article, and it looks at it from four different angles at once: what's the market tone, how trustworthy does it look, what else has been reported on the same topic, and do those other sources actually agree with it.
 
-None of this is a "this is 100% fake" verdict. Think of it more like a second opinion you'd want before sharing or acting on a financial headline — every score here is a heuristic signal, not a fact-check.
+None of this is a "this is 100% fake" verdict. Think of it more like a second opinion you'd want before sharing or acting on a financial headline every score here is a heuristic signal, not a fact check.
 
 ## What it actually does
 
 - **Sentiment** — FinBERT reads the market tone (Bullish / Bearish / Neutral)
-- **Credibility** — a DistilBERT classifier I fine-tuned myself, combined with clickbait detection, emotional-language scoring, and a source-reputation lookup, into one risk score and action bucket
-- **Related coverage** — semantic search (meaning-based, not keyword match) across 10,686 real financial headlines
-- **Consensus** — an LLM reads the claim against related coverage and judges whether they agree, partially agree, or conflict; automatically falls back to a rule-based method if the LLM is unavailable, no manual switching needed
+- **Credibility** — a DistilBERT classifier I fine-tuned myself, combined with clickbait detection, emotional-language scoring, and a source reputation lookup, into one risk score and action bucket
+- **Related coverage** — semantic search (meaning based, not keyword match) across 10,686 real financial headlines
+- **Consensus** — an LLM reads the claim against related coverage and judges whether they agree, partially agree, or conflict; automatically falls back to a rule based method if the LLM is unavailable, no manual switching needed
 
 ## Screenshots
 
@@ -25,8 +25,8 @@ None of this is a "this is 100% fake" verdict. Think of it more like a second op
 
 - **Four separate signals, not one model doing everything** — sentiment, credibility, retrieval, and consensus each answer a genuinely different question. A fabricated article can still score "Bullish"; a well-corroborated one can still use dramatic language. No single score can carry all of that.
 - **The credibility classifier's limitation is documented, not hidden** — it's trained on general/political news (no open financial fake-news dataset exists), and I found a real example where it confidently misclassifies a neutral financial headline. That's exactly why it's one signal among several, not the only one.
-- **The LLM integration is provider-agnostic** — built against the OpenAI SDK interface, but the actual base URL and model are just config values. I ended up verifying it live with Groq (free, no card) rather than OpenAI, and switching back is a two-line `.env` change, not a code change.
-- **Everything's been tested with real data, not just "it compiles"** — dataset label directions were manually verified, not assumed; a data-leakage bug was found and fixed mid-project (test accuracy went *up* after the fix, which is itself evidence the fix was correct, not just cautious); a concurrency bug was reproduced and fixed with a proper lock, verified under simulated concurrent load.
+- **The LLM integration is provider-agnostic** — built against the OpenAI SDK interface, but the actual base URL and model are just config values. I ended up verifying it live with Groq (free, no card) rather than OpenAI, and switching back is a two line `.env` change, not a code change.
+- **Everything's been tested with real data, not just "it compiles"** — dataset label directions were manually verified, not assumed; a data leakage bug was found and fixed mid project (test accuracy went *up* after the fix, which is itself evidence the fix was correct, not just cautious); a concurrency bug was reproduced and fixed with a proper lock, verified under simulated concurrent load.
 
 ## Running it locally
 
@@ -52,8 +52,8 @@ Note: the credibility classifier checkpoint and the retrieval vector store are b
 
 ## Honest limitations
 
-- Credibility classifier's financial-domain accuracy is unverified beyond a small hand-checked sample — this is a real, currently-unsolved gap in available datasets, not something unique to this project
+- Credibility classifier's financial-domain accuracy is unverified beyond a small hand checked sample this is a real, currently-unsolved gap in available datasets, not something unique to this project
 - The retrieval corpus skews toward Indian financial markets, not global coverage
 - Credibility scoring weights are a designed heuristic, not statistically fit to data
-- No authentication or multi-user support — intentionally out of scope for this project's goals
+- No authentication or multi user support  intentionally out of scope for this project's goals
 
