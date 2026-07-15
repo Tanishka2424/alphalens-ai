@@ -12,6 +12,8 @@ RUN pip install --no-cache-dir torch==2.5.1 --index-url https://download.pytorch
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
+COPY training/checkpoints/credibility_classifier/ ./training/checkpoints/credibility_classifier/
+COPY training/vector_store/ ./training/vector_store/
 
 # Render (and most PaaS) inject $PORT at runtime; default to 8000 for local use.
 ENV PORT=8000

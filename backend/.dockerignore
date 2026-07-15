@@ -7,3 +7,6 @@ __pycache__/
 venv/
 *.egg-info/
 .pytest_cache/
+training/data/
+training/*.ipynb
+training/*.py
