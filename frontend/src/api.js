@@ -1,8 +1,10 @@
 import axios from 'axios'
 
-// Points at the local FastAPI backend (uvicorn app.main:app --reload).
-// Change this if the backend runs somewhere else.
-const BASE_URL = 'http://localhost:8000/api/v1'
+// Vite exposes any VITE_-prefixed env var via import.meta.env at build time.
+// Locally (npm run dev), this falls back to localhost since no .env is set.
+// In production (Vercel), VITE_API_BASE_URL will be set to the deployed
+// Render backend URL - same code, different build-time value, no branching logic needed.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
 
 const client = axios.create({ baseURL: BASE_URL, timeout: 60000 })
 
