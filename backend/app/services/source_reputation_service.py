@@ -54,26 +54,25 @@ def _extract_domain(url: str) -> str:
 
 def lookup_source_reputation(source_name: str | None, url: str | None) -> SourceReputationResponse:
     resolved_domain = None
-    tier = "Unverified"
+    tier = "Not in our list"
     matched_via = None
 
     if url:
         resolved_domain = _extract_domain(url)
         if resolved_domain in REPUTATION_ALLOWLIST:
-            tier = "Reputable"
+            tier = "Known outlet"
             matched_via = "url"
 
-    if tier == "Unverified" and source_name:
+    if tier == "Not in our list" and source_name:
         name_key = source_name.strip().lower()
         if name_key in REPUTATION_ALLOWLIST:
-            tier = "Reputable"
+            tier = "Known outlet"
             matched_via = "source_name"
 
-    risk_score = 0.0 if tier == "Reputable" else 0.4
 
     return SourceReputationResponse(
         tier=tier,
         resolved_domain=resolved_domain,
-        matched_via=matched_via,
-        risk_score=risk_score,
+        matched_via=matched_via
+        
     )

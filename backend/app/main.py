@@ -13,10 +13,9 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description=(
-        "AI-powered financial news intelligence platform. Provides sentiment "
-        "analysis, credibility indicators, and source consensus signals to "
-        "help users evaluate financial news faster. This is a heuristic "
-        "assistance tool, not a factual truth-verification system."
+        "Financial news intelligence: sentiment, writing-style signals, and "
+        "related coverage. This is a heuristic assistance tool, not a "
+        "factual truth-verification system."
     ),
 )
 

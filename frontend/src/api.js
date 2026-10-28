@@ -53,11 +53,3 @@ export async function findSimilarArticles(text, topK = 5) {
   }
 }
 
-export async function analyzeConsensus(text, topK = 5) {
-  try {
-    const { data } = await client.post('/consensus/analyze', { text, top_k: topK })
-    return data
-  } catch (e) {
-    throw unwrapError(e)
-  }
-}

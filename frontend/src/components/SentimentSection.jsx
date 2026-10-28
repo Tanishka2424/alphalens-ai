@@ -6,7 +6,7 @@ const COLOR_FOR_LABEL = { Bullish: 'ledger', Bearish: 'red', Neutral: 'amber' }
 export default function SentimentSection({ status, error, data }) {
   return (
     <ResultCard eyebrow="Sentiment Read" status={status} error={error}>
-      {data && (
+      {data && (          
         <div className="flex flex-wrap items-center gap-4">
           <StampBadge label={data.label} color={COLOR_FOR_LABEL[data.label]} />
           <span className="font-mono-data text-sm text-[var(--color-card-ink-soft)]">

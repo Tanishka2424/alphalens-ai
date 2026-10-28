@@ -73,7 +73,7 @@ def emotional_language_check(payload: EmotionalLanguageRequest) -> EmotionalLang
 @router.post(
     "/source-reputation-check",
     response_model=SourceReputationResponse,
-    summary="Curated allowlist lookup - 'Reputable' (verified) vs 'Unverified', never a blocklist claim",
+    summary="Curated outlet list lookup: 'Known outlet' or 'Not in our list'. Not a reliability judgment.",
 )
 def source_reputation_check(payload: SourceReputationRequest) -> SourceReputationResponse:
     try:
@@ -87,16 +87,11 @@ def source_reputation_check(payload: SourceReputationRequest) -> SourceReputatio
 @router.post(
     "/analyze",
     response_model=CredibilityAnalyzeResponse,
-    summary="Combined credibility score: classifier + clickbait + emotional language + source reputation",
+    summary="Writing-style and source-context signals (no combined score, not a truth check)",
 )
 def analyze(payload: CredibilityAnalyzeRequest) -> CredibilityAnalyzeResponse:
     try:
-        result = analyze_credibility(payload.text, payload.source_name, payload.url)
-        logger.info(f"Credibility analyze: risk_score={result.risk_score} bucket={result.action_bucket}")
-        return result
-    except FileNotFoundError as e:
-        logger.error(str(e))
-        raise HTTPException(status_code=503, detail=str(e))
+        return analyze_credibility(payload.text, payload.source_name, payload.url)
     except Exception:
         logger.exception("Credibility analysis failed")
-        raise HTTPException(status_code=500, detail="Credibility analysis failed.")       
+        raise HTTPException(status_code=500, detail="Credibility analysis failed.")

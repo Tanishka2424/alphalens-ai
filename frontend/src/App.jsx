@@ -3,8 +3,7 @@ import IntakeForm from './components/IntakeForm'
 import SentimentSection from './components/SentimentSection'
 import CredibilitySection from './components/CredibilitySection'
 import RetrievalSection from './components/RetrievalSection'
-import ConsensusSection from './components/ConsensusSection'
-import { analyzeSentiment, analyzeCredibility, findSimilarArticles, analyzeConsensus } from './api'
+import { analyzeSentiment, analyzeCredibility, findSimilarArticles } from './api'
 
 const emptySection = { status: 'idle', error: null, data: null }
 
@@ -19,7 +18,7 @@ export default function App() {
   const [sentiment, setSentiment] = useState(emptySection)
   const [credibility, setCredibility] = useState(emptySection)
   const [retrieval, setRetrieval] = useState(emptySection)
-  const [consensus, setConsensus] = useState(emptySection)
+ 
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   function scrollToAnalyzer() {
@@ -31,7 +30,6 @@ export default function App() {
     setSentiment({ status: 'loading', error: null, data: null })
     setCredibility({ status: 'loading', error: null, data: null })
     setRetrieval({ status: 'loading', error: null, data: null })
-    setConsensus({ status: 'loading', error: null, data: null })
 
     const run = async (fn, setter) => {
       try {
@@ -46,7 +44,6 @@ export default function App() {
       run(() => analyzeSentiment(text), setSentiment),
       run(() => analyzeCredibility(text, sourceName, url), setCredibility),
       run(() => findSimilarArticles(text, 5), setRetrieval),
-      run(() => analyzeConsensus(text, 5), setConsensus),
     ])
 
     setIsSubmitting(false)
@@ -64,8 +61,8 @@ export default function App() {
             A second opinion for<br />every financial headline.
           </h1>
           <p className="mt-5 text-[var(--color-ink-soft)] leading-relaxed max-w-xl mx-auto">
-            Sentiment, credibility, and cross-source consensus &mdash; checked against
-            10,686 indexed articles before you trust it. A heuristic assistance tool,
+            “Sentiment, writing signals, and related coverage &mdash; checked against
+            three checks on 10,686 indexed articles before you trust it. A heuristic assistance tool,
             not a fact-verification system.
           </p>
           <button
@@ -75,11 +72,9 @@ export default function App() {
             Analyze a headline &darr;
           </button>
 
-          <div className="mt-14 grid grid-cols-2 sm:grid-cols-4 gap-px bg-[var(--color-panel-line)] rounded-lg overflow-hidden max-w-xl mx-auto">
+          <div className="mt-14 grid grid-cols-2 sm:grid-cols-2 gap-px bg-[var(--color-panel-line)] rounded-lg overflow-hidden max-w-xl mx-auto">
             {[
-              ['Sentiment', 'Bullish'],
-              ['Credibility', '72.4'],
-              ['Consensus', '4/5'],
+              ['Model', 'FinBERT'],
               ['Corpus', '10,686'],
             ].map(([label, value]) => (
               <div key={label} className="bg-[var(--color-card)] px-4 py-3 text-left">
@@ -126,7 +121,7 @@ export default function App() {
                 <SentimentSection {...sentiment} />
                 <CredibilitySection {...credibility} />
                 <RetrievalSection {...retrieval} />
-                <ConsensusSection {...consensus} />
+               
               </>
             )}
           </div>
