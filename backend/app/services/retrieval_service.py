@@ -10,6 +10,7 @@ Both stay empty/absent until ingest_corpus.py has been run to populate
 the vector store - that's a separate one-time step, not part of a request.
 """
 import os
+import re
 import threading
 
 from chromadb import PersistentClient
@@ -20,6 +21,12 @@ from app.core.logging import get_logger
 from app.schemas.retrieval import SimilarArticleResult, SimilarArticlesResponse
 
 logger = get_logger(__name__)
+
+NEAR_DUPLICATE_THRESHOLD = 0.97  # design choice, not tuned on data yet
+
+
+def _normalize(s: str) -> str:
+    return re.sub(r"\W+", " ", s.lower()).strip()
 
 
 class RetrievalService:
@@ -33,15 +40,9 @@ class RetrievalService:
         if self._embedder is not None and self._collection is not None:
             return
 
-        # Slow path: only one thread should actually do the loading. Two
-        # concurrent requests (e.g. /retrieval/similar-articles and
-        # /consensus/analyze firing at the same time from the frontend)
-        # both hitting this method for the first time is exactly what
-        # caused a real crash in testing - ChromaDB's client isn't safe
-        # to initialize from two threads at once for the same path.
+        # Slow path: only one thread should do the loading (ChromaDB's client
+        # is not safe to initialize from two threads at once for the same path).
         with self._lock:
-            # Re-check inside the lock: another thread may have already
-            # finished loading while this thread was waiting for the lock.
             if self._embedder is not None and self._collection is not None:
                 return
 
@@ -70,30 +71,50 @@ class RetrievalService:
 
         query_embedding = self._embedder.encode([text]).tolist()
 
+        # Ask for extra results so we can drop duplicates and still return top_k.
         results = self._collection.query(
             query_embeddings=query_embedding,
-            n_results=top_k,
+            n_results=top_k + 5,
         )
 
-        matches = []
+        ids = results.get("ids", [[]])[0]
         docs = results.get("documents", [[]])[0]
         metadatas = results.get("metadatas", [[]])[0]
         distances = results.get("distances", [[]])[0]
 
-        for doc, meta, distance in zip(docs, metadatas, distances):
-            # Chroma returns cosine DISTANCE (0=identical); convert to a
-            # similarity score (1=identical) for a more intuitive API response.
+        query_norm = _normalize(text)
+        matches = []
+        excluded = 0
+
+        for article_id, doc, meta, distance in zip(ids, docs, metadatas, distances):
+            # Chroma returns cosine DISTANCE (0 = identical); convert to similarity.
             similarity = round(max(1.0 - distance, 0.0), 4)
+            title = meta.get("title", "Untitled")
+
+            # Skip the query itself and near-duplicates of it.
+            if (
+                _normalize(title) == query_norm
+                or _normalize(doc) == query_norm
+                or similarity >= NEAR_DUPLICATE_THRESHOLD
+            ):
+                excluded += 1
+                continue
+
             matches.append(
                 SimilarArticleResult(
-                    title=meta.get("title", "Untitled"),
+                    article_id=str(article_id),
+                    title=title,
                     snippet=doc[:300],
                     source=meta.get("source"),
+                    url=meta.get("url"),
+                    published_at=meta.get("published_at"),
                     similarity_score=similarity,
                 )
             )
+            if len(matches) == top_k:
+                break
 
-        return SimilarArticlesResponse(results=matches)
+        return SimilarArticlesResponse(results=matches, excluded_duplicates=excluded)
 
 
 retrieval_service = RetrievalService()
