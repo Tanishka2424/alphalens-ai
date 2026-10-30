@@ -33,3 +33,6 @@ setup.txt
 
 
 vectore_store_backup.
+backend/training/checkpoints/
+
+backend/evaluation/explain_results.json
