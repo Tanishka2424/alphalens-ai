@@ -32,11 +32,12 @@ class Settings(BaseSettings):
     VECTOR_STORE_PATH: str = "training/vector_store"
     # Inference device: "cpu" or "cuda"
     DEVICE: str = "cpu"
-    # Consensus reasoning (Phase 4)
-    # Consensus reasoning (Phase 4)
+    
+    # LLM for grounded explanations (any OpenAI-compatible provider, e.g. Groq).
+    # No defaults on purpose: set all three in backend/.env.
     OPENAI_API_KEY: str | None = None
-    OPENAI_MODEL_NAME: str = "gpt-4o-mini"
-    OPENAI_BASE_URL: str | None = None  # set to use an OpenAI-compatible provider (e.g. Groq) instead
+    OPENAI_MODEL_NAME: str | None = None
+    OPENAI_BASE_URL: str | None = None
 
 
 # Singleton settings instance imported everywhere else
