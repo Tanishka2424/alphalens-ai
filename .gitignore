@@ -19,3 +19,17 @@ frontend/.env
 **/*.safetensors
 !backend/training/checkpoints/credibility_classifier/**
 backend/training/data/
+
+
+# AlphaLens V2 local environments
+.venv/
+.venv*/
+backend/.venv312/
+
+# Temporary audit outputs
+backend/eval_error.txt
+backend_structure.txt
+setup.txt
+
+
+vectore_store_backup.

@@ -1,0 +1,12 @@
+[
+  {
+    "publisher": "SEBI",
+    "url": "https://www.sebi.gov.in/sebirss.xml",
+    "only_link_contains": [
+      "/media-and-notifications/press-releases/",
+      "/legal/circulars/"
+    ]
+  }
+]
+
+
