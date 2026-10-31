@@ -1,18 +1,28 @@
 import ResultCard from './ResultCard'
-import StampBadge from './StampBadge'
 
-const COLOR_FOR_LABEL = { Bullish: 'ledger', Bearish: 'red', Neutral: 'amber' }
+const STYLE = {
+  Bullish: { sign: '▲', cls: 'bg-up text-up-ink' },
+  Bearish: { sign: '▼', cls: 'bg-down text-down-ink' },
+  Neutral: { sign: '●', cls: 'bg-line text-teal' },
+}
 
 export default function SentimentSection({ status, error, data }) {
+  const s = data ? STYLE[data.label] : null
   return (
-    <ResultCard eyebrow="Sentiment Read" status={status} error={error}>
-      {data && (          
-        <div className="flex flex-wrap items-center gap-4">
-          <StampBadge label={data.label} color={COLOR_FOR_LABEL[data.label]} />
-          <span className="font-mono-data text-sm text-[var(--color-card-ink-soft)]">
-            {(data.confidence * 100).toFixed(1)}% confidence &middot; {data.inference_time_ms}ms
-          </span>
-        </div>
+    <ResultCard title="Market tone" status={status} error={error}>
+      {data && s && (
+        <>
+          <p className={`inline-flex items-center gap-3 px-5 py-2 font-display text-4xl uppercase tracking-wide ${s.cls}`}>
+            <span aria-hidden="true">{s.sign}</span>
+            {data.label}
+          </p>
+          <p className="mt-3 text-sm text-teal-soft">
+            Bullish {data.scores.Bullish?.toFixed(2)} · Bearish {data.scores.Bearish?.toFixed(2)} · Neutral {data.scores.Neutral?.toFixed(2)}
+          </p>
+          <p className="mt-1 text-sm text-teal-soft">
+            Read by FinBERT. These are model scores, not probabilities.
+          </p>
+        </>
       )}
     </ResultCard>
   )

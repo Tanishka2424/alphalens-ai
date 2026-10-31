@@ -53,3 +53,11 @@ export async function findSimilarArticles(text, topK = 5) {
   }
 }
 
+export async function explainClaim(text, topK = 5) {
+  try {
+    const { data } = await client.post('/explain/analyze', { text, top_k: topK })
+    return data
+  } catch (e) {
+    throw unwrapError(e)
+  }
+}

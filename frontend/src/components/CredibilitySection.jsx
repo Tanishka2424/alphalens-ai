@@ -1,68 +1,55 @@
 import ResultCard from './ResultCard'
 
-function Signal({ title, value, reasons, emptyText }) {
+function level(score) {
+  if (!score) return 'None found'
+  if (score < 0.34) return 'Low'
+  if (score < 0.67) return 'Medium'
+  return 'High'
+}
+
+function Meter({ label, score, reasons }) {
   return (
-    <div>
-      <dt className="text-xs uppercase tracking-wide text-[var(--color-card-ink-soft)]">{title}</dt>
-      <dd className="font-mono-data mt-0.5 text-[var(--color-card-ink)]">{value}</dd>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
-        {reasons.length > 0 ? (
-          reasons.map((r) => (
-            <span key={r} className="text-xs px-2 py-0.5 rounded border border-[var(--color-card-ink-soft)] text-[var(--color-card-ink)]">
-              {r}
-            </span>
-          ))
-        ) : (
-          <span className="text-xs text-[var(--color-card-ink-soft)]">{emptyText}</span>
-        )}
+    <div className="mb-4">
+      <p className="flex justify-between font-semibold">
+        <span>{label}</span>
+        <span>{level(score)}</span>
+      </p>
+      <div className="h-3 bg-line my-1" role="img" aria-label={`${label}: ${level(score)}`}>
+        <div className="h-3 bg-teal" style={{ width: `${Math.max(Math.round(score * 100), score ? 4 : 0)}%` }} />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {reasons.map((r) => (
+          <span key={r} className="border-2 border-teal px-2 text-xs font-semibold">{r}</span>
+        ))}
       </div>
     </div>
   )
 }
 
 export default function CredibilitySection({ status, error, data }) {
-  const clickbait = data?.clickbait
-  const emotional = data?.emotional_language
-  const source = data?.source_context
-  const clickbaitReasons = [
-  ...(clickbait?.matched_phrases ?? []),
-  ...(clickbait?.excessive_caps ? ['Excessive capital letters'] : []),
-  ...(clickbait?.excessive_punctuation ? ['Excessive punctuation'] : []),
-]
+  const cb = data?.clickbait
+  const em = data?.emotional_language
+  const src = data?.source_context
+  const cbReasons = cb
+    ? [
+        ...(cb.matched_phrases ?? []),
+        ...(cb.excessive_caps ? ['Excessive capital letters'] : []),
+        ...(cb.excessive_punctuation ? ['Excessive punctuation'] : []),
+      ]
+    : []
 
   return (
-    <ResultCard eyebrow="Writing & Source Signals" status={status} error={error}>
+    <ResultCard title="How it is written" status={status} error={error}>
       {data && (
-        <div>
-          <dl className="grid grid-cols-1 sm:grid-cols-3 gap-5 text-sm">
-            <Signal
-              title="Clickbait wording"
-              value={clickbait.score.toFixed(2)}
-              reasons={clickbaitReasons}
-              emptyText="No clickbait phrases found"
-            />
-            <Signal
-              title="Emotional language"
-              value={emotional.score.toFixed(2)}
-              reasons={emotional.matched_words ?? []}
-              emptyText="No emotional words found"
-            />
-            <Signal
-              title="Source context"
-              value={source.tier}
-              reasons={source.resolved_domain
-              ? [source.resolved_domain]
-              : source.matched_via
-              ? [`Matched by ${source.matched_via.replace('_', ' ')}`]
-             : []
-}
-            />
-          </dl>
-
-          <p className="mt-5 text-xs text-[var(--color-card-ink-soft)] italic font-display">
-            {data.disclaimer} A source that is not in our list is not necessarily unreliable.
+        <>
+          <Meter label="Clickbait wording" score={cb.score} reasons={cbReasons} />
+          <Meter label="Emotional language" score={em.score} reasons={em.matched_words ?? []} />
+          <p className="font-semibold">Source: {src.tier}</p>
+          {src.resolved_domain && <p className="text-sm text-teal-soft">{src.resolved_domain}</p>}
+          <p className="mt-3 text-sm text-teal-soft">
+            Writing-style hints only. They say nothing about whether a claim is true, and a source that is not in our list is not necessarily unreliable.
           </p>
-        </div>
+        </>
       )}
     </ResultCard>
   )
