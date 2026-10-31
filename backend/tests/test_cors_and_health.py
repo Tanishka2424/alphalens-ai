@@ -1,9 +1,10 @@
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
 from app.main import app
 
 client = TestClient(app)
-ALLOWED = "http://localhost:5173"
+ALLOWED = settings.CORS_ORIGINS.split(",")[0].strip()  # whatever the environment allows
 OTHER = "https://evil.example.com"
 
 
