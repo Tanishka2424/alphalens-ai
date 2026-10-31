@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    # Browser origins allowed to call the API (comma-separated). Add your frontend URL here.
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+
     # ML model identifiers (HuggingFace hub IDs)
     # FinBERT (Phase 1)
     FINBERT_MODEL_NAME: str = "ProsusAI/finbert"
