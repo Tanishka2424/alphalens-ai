@@ -13,11 +13,11 @@ export default function Landing() {
           className="hidden md:block absolute top-0 bottom-0 right-[-40px] w-[420px] bg-teal"
           style={{ transform: 'skewX(-16deg)' }}
         />
-        <div className="relative grid md:grid-cols-[1.35fr_1fr] gap-10 items-center pt-14">
+        <div className="relative grid md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-10 items-center pt-14">
           <div>
-            <h1 className="font-display uppercase text-6xl sm:text-8xl leading-[0.98]">
-              Understand<br />any headline.<br />
-              <span className="bg-cream px-3">With sources.</span>
+            <h1 className="font-display uppercase text-6xl sm:text-8xl leading-[1.05]">
+            Understand<br />any headline.
+            <span className="mt-3 block w-fit bg-cream px-3 pt-2 pb-1 leading-none">With sources.</span>
             </h1>
             <p className="mt-6 text-xl max-w-xl">
               Paste a financial headline. Get a plain explanation based on real articles, the market tone, and how the text is written.
