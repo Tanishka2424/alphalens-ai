@@ -10,13 +10,11 @@ A portfolio project built while preparing for AI engineering placements. You pas
 
 | Landing | Claim that differs from the article |
 |---|---|
-| ![Landing](docs/screenshots/landing.png) | ![Mismatch](docs/screenshots/demo-mismatch.png) |
+| ![Landing](docs/screenshots/Landing.png) | ![Mismatch](docs/screenshots/demo_mismatch1.png) |
 
-| Refuses when evidence is missing | Tone and writing signals |
+| Differences box | Refuses when evidence is missing |
 |---|---|
-| ![Refusal](docs/screenshots/demo-refusal.png) | ![Cards](docs/screenshots/cards.png) |
-
-Evaluation page: `docs/screenshots/evaluation.png`
+| ![Differences](docs/screenshots/demo_mismatch2.png) | ![Refusal](docs/screenshots/demo_refusal.png) |
 
 ## What it does
 
@@ -114,7 +112,7 @@ A development check on **20 hand-written claims**: 9 covered by indexed articles
 
 To get numbers that were not tuned on, claims are generated from recent indexed articles: a paraphrase of each headline (the source article is the known right answer), a version with one fact changed, and 20 fixed off-topic claims. The claim file is reviewed once and then frozen (its hash is stored with the results), and the system is run on it **once**. Known-item retrieval, off-topic refusal and citation validity are scored automatically. Whether statements are supported is hand-labeled on a random sample.
 
-<!-- RESULTS: paste the held-out table and latency table here after running evaluation/run_heldout.py and evaluation/latency.py -->
+Held-out results are not published yet. The numbers above are from the 20-claim development check.
 
 Limits of this set: the claims are written by an LLM of the same family as the explainer, so paraphrases may be easier than real user claims, and labels come from one person.
 
