@@ -41,22 +41,42 @@ def service(rows):
     return s
 
 
-def test_exact_self_match_is_excluded_even_with_different_punctuation():
+def test_exact_match_is_kept_by_default():
     s = service([row("1", "Earnings season is here again! Top stocks", 0.30), row("2", "Other", 0.40)])
     r = s.find_similar("Earnings season is here again Top stocks", 5)
+    assert [x.title for x in r.results] == ["Earnings season is here again! Top stocks", "Other"]
+    assert r.excluded_duplicates == 0
+
+
+def test_exact_match_is_excluded_for_benchmarks():
+    s = service([row("1", "Earnings season is here again! Top stocks", 0.30), row("2", "Other", 0.40)])
+    r = s.find_similar("Earnings season is here again Top stocks", 5, exclude_self=True)
     assert [x.title for x in r.results] == ["Other"]
     assert r.excluded_duplicates == 1
 
 
-def test_near_duplicate_by_score_is_excluded():
-    s = service([row("1", "Almost same", 0.02), row("2", "Different", 0.40)])
-    r = s.find_similar("Some query text here", 5)
+def test_near_duplicate_by_score_is_kept_by_default():
+    r = service([row("1", "Almost same", 0.02), row("2", "Different", 0.40)]).find_similar("Some query text here", 5)
+    assert [x.title for x in r.results] == ["Almost same", "Different"]
+
+
+def test_near_duplicate_by_score_is_excluded_for_benchmarks():
+    r = service([row("1", "Almost same", 0.02), row("2", "Different", 0.40)]).find_similar(
+        "Some query text here", 5, exclude_self=True
+    )
     assert [x.title for x in r.results] == ["Different"]
     assert r.excluded_duplicates == 1
 
 
-def test_item_below_the_duplicate_threshold_is_kept():
-    r = service([row("1", "Close but not a copy", 0.05)]).find_similar("Some query text here", 5)
+def test_same_headline_indexed_twice_is_shown_once():
+    rows = [row("1", "Same headline", 0.20), row("2", "Same headline!", 0.21), row("3", "Other", 0.40)]
+    r = service(rows).find_similar("Some query text here", 5)
+    assert [x.title for x in r.results] == ["Same headline", "Other"]
+    assert r.excluded_duplicates == 1
+
+
+def test_item_below_the_duplicate_threshold_is_kept_even_for_benchmarks():
+    r = service([row("1", "Close but not a copy", 0.05)]).find_similar("Some query text here", 5, exclude_self=True)
     assert len(r.results) == 1
     assert r.results[0].similarity_score == 0.95
 
@@ -68,9 +88,9 @@ def test_returns_at_most_top_k_and_asks_for_extra_candidates():
     assert s._collection.last_n == 8  # top_k + 5
 
 
-def test_duplicates_do_not_reduce_the_number_of_results():
+def test_removed_duplicates_do_not_reduce_the_number_of_results():
     rows = [row("d", "Copy", 0.01)] + [row(str(i), f"Title {i}", 0.4) for i in range(4)]
-    r = service(rows).find_similar("Some query text here", 3)
+    r = service(rows).find_similar("Some query text here", 3, exclude_self=True)
     assert len(r.results) == 3
     assert r.excluded_duplicates == 1
 

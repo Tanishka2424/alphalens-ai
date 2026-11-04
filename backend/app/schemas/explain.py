@@ -22,8 +22,13 @@ class ExplainResponse(BaseModel):
     statements: list[CitedStatement] = Field(default_factory=list)
     uncertainty: str = Field(..., description="What the evidence does not show.")
     evidence: list[SimilarArticleResult] = Field(default_factory=list)
+    differences: list[str] = Field(
+        default_factory=list,
+        description="Differences between the claim and the cited headline/snippet, found by code (not the LLM).",
+    )
     dropped_statements: int = Field(
-        default=0, description="Statements removed because they cited IDs that were not provided."
+        default=0,
+        description="Statements removed because they cited unknown IDs or contained numbers found nowhere in the claim or cited text.",
     )
     disclaimer: str = Field(
         default=(

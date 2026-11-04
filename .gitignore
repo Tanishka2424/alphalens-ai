@@ -36,3 +36,7 @@ vectore_store_backup.
 backend/training/checkpoints/
 
 backend/evaluation/explain_results.json
+
+backend/evaluation/explain_results_v1_before.json
+
+backend/evaluation/explain_results*.json

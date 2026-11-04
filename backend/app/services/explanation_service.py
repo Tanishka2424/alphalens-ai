@@ -2,6 +2,11 @@
 Evidence-grounded explanation: the LLM may only use retrieved articles, must cite
 them by article_id, and every citation is checked against what we actually sent.
 
+Checks done in code (not by the LLM):
+- a statement that cites an id we did not send is dropped
+- a statement containing a number found in neither the claim nor the cited text is dropped
+- differences between the claim and the cited text (numbers, opposite words) are listed
+
 A valid citation only proves the model pointed at a real article. It does NOT prove
 the article supports the statement - that is measured by hand-labeling (see evaluation/).
 """
@@ -14,6 +19,7 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.schemas.explain import CitedStatement, ExplainResponse
 from app.schemas.retrieval import SimilarArticleResult
+from app.services.consistency import find_differences, numbers_grounded
 from app.services.retrieval_service import retrieval_service
 
 logger = get_logger(__name__)
@@ -32,10 +38,11 @@ SYSTEM_PROMPT = """You explain a financial headline or claim using ONLY the evid
 Rules:
 - Write at most 3 short statements. Every statement must cite one or more evidence ids from the list.
 - Cite an item only if it directly addresses THIS claim: the same company, event or figure. Items that are merely about the same general topic must not be cited.
+- If an item describes a different event or day (for example a different day's market move with different figures), do not cite it.
 - Attribute each statement using the exact source= value shown for that item. Never attribute to a person or company named inside a headline. Never write "the source".
 - Never write the labels "source=", "date=" or "headline=" in a statement. Write the publisher name in plain words.
-- A statement may only say what the cited item itself says. Add no outside knowledge, numbers, names or dates.
-- If the claim contains a number, direction or event that differs from what an item says, say so plainly, for example: "The claim says 20%, but the article reports 8%."
+- A statement may only say what the cited item itself says. Add no outside knowledge, numbers, names or dates. Every number in a statement must appear in the claim or in the cited item.
+- If the claim differs from an item in any number, direction (rise/fall), degree (likely/unlikely) or key term, say so plainly and quote both versions, for example: "The claim says 20%, but the article reports 8%."
 - Items with date=date unknown come from an old archive. Describe them as "an undated archive headline". Never use them to support a claim about current or upcoming events. If they are the only items, return no statements.
 - A prediction is not a fact. Report it as what its author predicted, not as what will happen.
 - Do NOT say whether the claim is true or false. Do NOT say the evidence confirms or disproves it.
@@ -57,6 +64,10 @@ def _evidence_block(items: list[SimilarArticleResult]) -> str:
         )
         lines.append(header if r.snippet == r.title else f"{header}\n    {r.snippet}")
     return "\n".join(lines)
+
+
+def _item_text(r: SimilarArticleResult) -> str:
+    return f"{r.title} {r.snippet} {r.published_at or ''}"
 
 
 def _parse_json(raw: str) -> dict:
@@ -115,7 +126,7 @@ def explain_claim(text: str, top_k: int) -> ExplainResponse:
     except (ValueError, KeyError, TypeError) as e:
         raise ExplanationUnavailableError(f"Unusable LLM output: {e}") from e
 
-    valid_ids = {r.article_id for r in evidence}
+    by_id = {r.article_id: r for r in evidence}
     statements: list[CitedStatement] = []
     dropped = 0
     for item in raw_statements[:MAX_STATEMENTS]:
@@ -127,7 +138,11 @@ def explain_claim(text: str, top_k: int) -> ExplainResponse:
             dropped += 1
             continue
         # Drop the whole statement if it cites nothing, or cites any ID we did not send.
-        if not s_text or not ids or any(i not in valid_ids for i in ids):
+        if not s_text or not ids or any(i not in by_id for i in ids):
+            dropped += 1
+            continue
+        # Drop it if it contains a number found in neither the claim nor the cited text.
+        if not numbers_grounded(s_text, text, [_item_text(by_id[i]) for i in ids]):
             dropped += 1
             continue
         statements.append(CitedStatement(text=s_text, evidence_ids=ids))
@@ -139,11 +154,13 @@ def explain_claim(text: str, top_k: int) -> ExplainResponse:
             dropped_statements=dropped,
         )
 
-    cited = {i for s in statements for i in s.evidence_ids}
+    cited_ids = {i for s in statements for i in s.evidence_ids}
+    cited = [r for r in evidence if r.article_id in cited_ids]
     return ExplainResponse(
         status="grounded",
         statements=statements,
         uncertainty=uncertainty or "The articles may not cover every aspect of this claim.",
-        evidence=[r for r in evidence if r.article_id in cited],
+        evidence=cited,
+        differences=find_differences(text, [f"{r.title} {r.snippet}" for r in cited]),
         dropped_statements=dropped,
     )

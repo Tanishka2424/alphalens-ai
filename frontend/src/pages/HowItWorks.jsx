@@ -1,7 +1,7 @@
 const STEPS = [
-  ['1 Retrieve', 'Find similar articles. Drop copies of your own text.'],
+  ['1 Retrieve', 'Find similar articles. If your headline is already indexed, that article is kept. Identical headlines are shown once.'],
   ['2 Explain', 'An LLM may only use those articles, and must cite them.'],
-  ['3 Validate', 'Any statement that cites an unknown article is dropped.'],
+  ['3 Validate', 'A statement is dropped if it cites an unknown article or contains a number found nowhere in your claim or the cited text. Differences from your claim are listed by code.'],
   ['4 Show', 'Publisher, date and link sit beside each statement.'],
 ]
 const SOURCES = [

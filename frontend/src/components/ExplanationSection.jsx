@@ -31,6 +31,21 @@ export default function ExplanationSection({ status, error, data }) {
               ))}
             </p>
           ))}
+
+          {data.differences?.length > 0 && (
+            <div className="mt-4 border-2 border-teal p-4">
+              <p className="font-semibold mb-1">Differences from your claim</p>
+              <ul className="list-disc pl-5 text-sm space-y-1">
+                {data.differences.map((d) => (
+                  <li key={d}>{d}</li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-teal-soft">
+                Found by simple code checks on the cited headline and short snippet only, not by the AI and not from the full article.
+              </p>
+            </div>
+          )}
+
           <p className="mt-4 text-sm text-teal-soft">{data.uncertainty}</p>
         </>
       )}

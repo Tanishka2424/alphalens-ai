@@ -1,59 +1,207 @@
 # AlphaLens AI
 
-I built this as a portfolio project while prepping for campus placements. It's an AI-powered financial news intelligence platform, you give it a headline or article, and it looks at it from four different angles at once: what's the market tone, how trustworthy does it look, what else has been reported on the same topic, and do those other sources actually agree with it.
+A portfolio project built while preparing for AI engineering placements. You paste a financial headline or claim, and AlphaLens explains it **using only articles it actually retrieved**, with the publisher, date and link for each one. It also shows the market tone and how the text is written.
 
-None of this is a "this is 100% fake" verdict. Think of it more like a second opinion you'd want before sharing or acting on a financial headline every score here is a heuristic signal, not a fact check.
+> **Version note.** This README describes **V2** (branch `feat/evidence-grounded-v2`). The older V1 design combined a fake-news classifier and a composite credibility score. V2 removes both. See [What changed from V1](#what-changed-from-v1-and-why).
 
-## What it actually does
-
-- **Sentiment** — FinBERT reads the market tone (Bullish / Bearish / Neutral)
-- **Credibility** — a DistilBERT classifier I fine-tuned myself, combined with clickbait detection, emotional-language scoring, and a source reputation lookup, into one risk score and action bucket
-- **Related coverage** — semantic search (meaning based, not keyword match) across 10,686 real financial headlines
-- **Consensus** — an LLM reads the claim against related coverage and judges whether they agree, partially agree, or conflict; automatically falls back to a rule based method if the LLM is unavailable, no manual switching needed
+**What it is not:** a fact-checker, trading advice, or an alert service. It never says a claim is true or false. Related articles are context, not confirmation.
 
 ## Screenshots
 
-<img width="1920" height="1080" alt="Screenshot 2026-07-13 105923" src="https://github.com/user-attachments/assets/3b81e8f3-fadb-4562-9fa2-d98f0b7837f5" />
-<img width="1920" height="1080" alt="Screenshot 2026-07-13 110132" src="https://github.com/user-attachments/assets/ebea284e-abc2-4d50-a0eb-9deccfb837b0" />
-<img width="1920" height="1080" alt="Screenshot 2026-07-13 110044" src="https://github.com/user-attachments/assets/7f17c5f8-926e-4c19-9d48-ef3377892538" />
-<img width="1920" height="1080" alt="Screenshot 2026-07-13 110051" src="https://github.com/user-attachments/assets/26d7e19d-9048-47de-a89c-db78576b8f24" />
-<img width="1920" height="1080" alt="Screenshot 2026-07-13 110235" src="https://github.com/user-attachments/assets/9485dea6-4d88-427d-b2a8-a176deb9a34a" />
-<img width="1920" height="1080" alt="Screenshot 2026-07-13 110240" src="https://github.com/user-attachments/assets/479de9a5-d362-429c-8b84-fc769adfc18d" />
+| Landing | Claim that differs from the article |
+|---|---|
+| ![Landing](docs/screenshots/landing.png) | ![Mismatch](docs/screenshots/demo-mismatch.png) |
 
+| Refuses when evidence is missing | Tone and writing signals |
+|---|---|
+| ![Refusal](docs/screenshots/demo-refusal.png) | ![Cards](docs/screenshots/cards.png) |
 
-## Why it's built this way
+Evaluation page: `docs/screenshots/evaluation.png`
 
-- **Four separate signals, not one model doing everything** — sentiment, credibility, retrieval, and consensus each answer a genuinely different question. A fabricated article can still score "Bullish"; a well-corroborated one can still use dramatic language. No single score can carry all of that.
-- **The credibility classifier's limitation is documented, not hidden** — it's trained on general/political news (no open financial fake-news dataset exists), and I found a real example where it confidently misclassifies a neutral financial headline. That's exactly why it's one signal among several, not the only one.
-- **The LLM integration is provider-agnostic** — built against the OpenAI SDK interface, but the actual base URL and model are just config values. I ended up verifying it live with Groq (free, no card) rather than OpenAI, and switching back is a two line `.env` change, not a code change.
-- **Everything's been tested with real data, not just "it compiles"** — dataset label directions were manually verified, not assumed; a data leakage bug was found and fixed mid project (test accuracy went *up* after the fix, which is itself evidence the fix was correct, not just cautious); a concurrency bug was reproduced and fixed with a proper lock, verified under simulated concurrent load.
+## What it does
+
+For each headline or claim you submit:
+
+1. **Explanation.** 1 to 3 short statements, each citing the articles it came from. A "cited article" is a retrieved item (its headline and short snippet, not the full text) that a statement relies on. If nothing relevant is found, it says so instead of guessing.
+2. **Evidence.** The cited articles, with publisher, date, link and a similarity score. Items with no date are tagged as undated archive headlines.
+3. **Market tone.** FinBERT label (Bullish, Bearish, Neutral) with model scores. These are softmax scores, not calibrated probabilities.
+4. **Writing signals.** Clickbait wording and emotional language, each with the phrases that triggered it, plus a limited source-context note (known outlet or not in our list). A source that is not in our list is not treated as unreliable.
+5. **Other related coverage.** Collapsed, labeled as context.
+
+The web app has four pages: Landing, Analyze, Evaluation, and How it works.
+
+## Who it is for
+
+Aimed at a retail investor or finance student who sees a headline (for example on WhatsApp) and wants context: what indexed articles say, with publisher, date and link, plus the market tone and writing style. It is a working demonstration of an evidence-grounded pipeline, not a news service: the recent-article index is small, so many real headlines will return "not enough evidence".
+
+## Where the evidence comes from
+
+All sources live in one local index and are searched together by similarity of meaning, with no source searched first. Nothing is fetched when you submit a headline. Articles are added ahead of time by running the ingestion scripts, the usual pattern for retrieval systems. Searching a news API at query time was left out on purpose: the free plan delays articles by 24 hours and allows about 100 requests a day, and turning a claim into a good search query is unreliable.
+
+- **NewsAPI**: recent articles with publisher, date and link.
+- **SEBI feed**: the regulator's own press releases and circulars, a primary source for claims about SEBI.
+- **SEntFiN**: older undated headlines, used only as context.
+
+The LLM does not search or fetch. It only reads the retrieved articles and writes the cited statements, which code then validates.
+
+## How it works
+
+```
+SEntFiN headlines + SEBI RSS feed + NewsAPI
+        -> SQLite article store (provenance, de-duplication)
+        -> ChromaDB vector index (sentence-transformers all-MiniLM-L6-v2)
+
+claim -> retrieve similar articles
+      -> show identical headlines once (the claim's own match is kept: it is the best evidence)
+      -> refuse if nothing is similar enough, or only undated items exist
+      -> LLM writes statements that must cite evidence ids
+      -> code drops any statement that cites an id it was not given,
+         or contains a number found in neither the claim nor the cited text
+      -> code lists differences between the claim and the cited text (numbers, rise/fall)
+      -> FastAPI response -> React cards
+```
+
+Key design points:
+
+- **Citations are validated in code.** A statement that cites an unknown article is dropped. A valid citation only proves the model pointed at a real article, not that the article supports the statement, so support is measured by hand (see Evaluation).
+- **Differences are found by code, not by the LLM.** Numbers in the claim that the cited headline or snippet does not contain, and opposite words (rise/fall, likely/unlikely, hike/cut), are listed. This only looks at the headline and short snippet we hold.
+- **Provenance is never invented.** If a publisher, date or URL is missing, the field stays empty.
+- **Rules that must always hold live in code, not in the prompt.** Example: refusing when only undated archive headlines exist.
+- **The LLM is provider-agnostic.** It uses the OpenAI SDK against any OpenAI-compatible endpoint. Development used Groq.
+
+## What changed from V1 and why
+
+| V1 feature | V2 | Reason |
+|---|---|---|
+| DistilBERT real/fake classifier | Removed | Trained on general and political news, not validated for financial news. A simple TF-IDF model scored almost as well, which points to publisher-style leakage. A high score on the wrong task is not evidence for the real task |
+| Composite credibility score with Reliable / Needs Verification / High Risk | Removed | Hand-set weights, and the labels implied a level of verification the system does not have |
+| Sentiment-agreement "consensus" | Removed | Several outlets can repeat the same unsupported claim, and agreement in tone is not corroboration |
+| Retrieval with no ids, URLs or dates | Fixed | Evidence needs a stable id and honest provenance |
+| Retrieval evaluated on queries taken from the index | Replaced | A query could retrieve itself at similarity 1.0, inflating the metric. Benchmarks now exclude self-matches (`exclude_self`). The product keeps an exact match, because it is the best evidence |
+| Wildcard CORS, liveness-only health check | Fixed | CORS is limited to configured origins, and `/ready` reports readiness |
+
+## Data sources
+
+| Source | What it gives | Notes |
+|---|---|---|
+| SEntFiN dataset (Kaggle) | 10,686 India-market headlines | No dates or links, so these are treated as undated archive context. Download it yourself, it is not in the repo |
+| SEBI RSS feed | Press releases and circulars | Items are filtered to press releases and circulars only, to avoid enforcement notices that name private individuals. SEBI's website policy asks for permission to reproduce content, so the stored items are not redistributed |
+| NewsAPI | Recent articles with publisher, date and link | Free developer plan, intended for development use. Only titles, short descriptions, links and dates are stored |
+
+Publisher RSS terms were read before choosing feeds. One major publisher's feed allows personal, non-commercial use only, so it is not used. Because the sources are licensed for development and personal use, **this project is not deployed**. The ingested data stays local and is not committed.
+
+## Evaluation
+
+A development check on **20 hand-written claims**: 9 covered by indexed articles, 5 off-topic, and 6 adversarial (wrong number, wrong direction, unsupported event).
+
+| Result | Count |
+|---|---|
+| Covered claims answered with a cited article | 9 / 9 |
+| Off-topic claims refused | 5 / 5 |
+| Adversarial claims | 2 answered by stating the mismatch, 4 refused |
+| Statements judged supported by their cited article (hand-labeled) | 13 / 13 |
+| Answers that presented a mismatched claim as confirmed | 0 / 11 |
+
+**Read these numbers carefully:**
+
+- This is **not a benchmark**. The prompt and code were tuned on these same 20 claims after reading the outputs, so the results are optimistic.
+- One person wrote and labeled the claims, with AI-assisted guidance during labeling.
+- Most items are headline-length, so many statements restate the headline. The value here is traceability and mismatch flagging, not deeper analysis.
+- The first version of the check looked perfect on counts (9/9, 5/5) while reading the outputs showed padding from old headlines and wrongly attributed sources. That led to statement-level labeling and the fixes listed on the Evaluation page.
+- A held-out set of new claims, run once with no tuning, is planned. Retrieval quality has not been benchmarked yet.
+
+### Held-out evaluation
+
+To get numbers that were not tuned on, claims are generated from recent indexed articles: a paraphrase of each headline (the source article is the known right answer), a version with one fact changed, and 20 fixed off-topic claims. The claim file is reviewed once and then frozen (its hash is stored with the results), and the system is run on it **once**. Known-item retrieval, off-topic refusal and citation validity are scored automatically. Whether statements are supported is hand-labeled on a random sample.
+
+<!-- RESULTS: paste the held-out table and latency table here after running evaluation/run_heldout.py and evaluation/latency.py -->
+
+Limits of this set: the claims are written by an LLM of the same family as the explainer, so paraphrases may be easier than real user claims, and labels come from one person.
+
+Run the development check yourself (the labeling step is interactive):
+
+```
+cd backend
+python evaluation/explain_eval.py run
+python evaluation/explain_eval.py label
+```
+
+## Tests and CI
+
+106 tests (103 run by default) cover the explanation service (invalid citations, bad JSON, LLM failure, refusals), retrieval filtering, the sentiment service and API, source signals, CORS and health endpoints, and the removal of the old features. The LLM and retrieval are faked, so tests need no API key or model download. Three extra tests that load the real FinBERT model are skipped unless you opt in.
+
+```
+cd backend
+python -m pytest -q
+RUN_MODEL_TESTS=1 python -m pytest tests/test_sentiment_service.py -q   # PowerShell: $env:RUN_MODEL_TESTS="1"
+```
+
+GitHub Actions runs the default suite on every push.
 
 ## Running it locally
 
-**Backend:**
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn app.main:app --reload
-```
-Visit `http://localhost:8000/docs` for the interactive API docs.
+**Backend**
 
-**Frontend** (in a second terminal):
-```bash
+```
+python -m venv .venv
+.venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+cd backend
+uvicorn app.main:app --reload --port 8000
+```
+
+Create `backend/.env` (never commit it):
+
+```
+OPENAI_API_KEY=your_key         # any OpenAI-compatible provider works, names stay OPENAI_*
+OPENAI_BASE_URL=https://api.groq.com/openai/v1
+OPENAI_MODEL_NAME=openai/gpt-oss-20b
+NEWSAPI_KEY=your_key            # only for training/fetch_newsapi.py
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+```
+
+Check `http://localhost:8000/docs` for the API and `http://localhost:8000/ready` for readiness.
+
+**Frontend** (second terminal)
+
+```
 cd frontend
 npm install
 npm run dev
 ```
 
-Note: the credibility classifier checkpoint and the retrieval vector store are both gitignored (large binary files) — see `PROJECT_DOCUMENTATION.md` for how to regenerate them (fine-tuning notebook + corpus ingestion script, both included in `backend/training/`).
+**Building the article store** (from `backend/`)
 
-## Honest limitations
+```
+python training/migrate_sentfin.py   # SEntFiN CSV -> SQLite (safe to repeat)
+python training/fetch_rss.py         # SEBI feed -> SQLite + vector index
+python training/fetch_newsapi.py     # NewsAPI -> SQLite + vector index
+python training/purge_origin.py newsapi   # remove one origin's rows (never sentfin)
+```
 
-- Credibility classifier's financial-domain accuracy is unverified beyond a small hand checked sample this is a real, currently-unsolved gap in available datasets, not something unique to this project
-- The retrieval corpus skews toward Indian financial markets, not global coverage
-- Credibility scoring weights are a designed heuristic, not statistically fit to data
-- No authentication or multi user support  intentionally out of scope for this project's goals
+Place the SEntFiN CSV at `backend/training/data/SEntFiN-v1.1.csv` first. The vector store and `articles.db` are local and gitignored. `training/ingest_corpus.py` is the original one-time index builder and **deletes the collection when it runs**, so never run it after adding live articles.
 
+## Limitations
+
+- Retrieval is a small sentence-embedding model over short headlines. It can rank by shared wording instead of meaning, and it has not been benchmarked with independent queries.
+- The corpus skews toward Indian markets, and SEntFiN items carry no dates, so they are never used on their own to explain a current claim. As a result, a claim about an old event is refused if only old headlines exist.
+- The code checks catch changed numbers and opposite words, not subtle wording changes such as "Shares" vs "Receipts".
+- The explainer sometimes restates a headline. It cannot check facts beyond what the retrieved articles say, and with one source it reports that one source.
+- The evaluation is small, author-labeled, and tuned on, as described above.
+- There is no way yet to rebuild the vector index from SQLite in one command, which is planned.
+- No authentication, accounts or multi-user support, by design.
+
+## Project layout
+
+```
+backend/app/        FastAPI app: api/, schemas/, services/ (sentiment, retrieval, explanation, signals)
+backend/training/   article store and ingestion scripts (SQLite, RSS, NewsAPI)
+backend/evaluation/ explainer evaluation script
+backend/tests/      pytest suite
+frontend/src/       React + Vite + Tailwind: pages/, components/
+.github/workflows/  CI
+```
+
+## Stack
+
+Python, FastAPI, Pydantic, Transformers (FinBERT), Sentence Transformers, ChromaDB, SQLite, OpenAI SDK (Groq in development), React, Vite, Tailwind, pytest, GitHub Actions.

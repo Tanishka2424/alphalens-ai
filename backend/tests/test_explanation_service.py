@@ -189,3 +189,59 @@ def test_evidence_block_labels_source_and_missing_date(make_article):
     block = svc._evidence_block([make_article("old-1", source="Pub", published_at=None)])
     assert "source=Pub" in block
     assert "date=date unknown" in block
+
+
+# ---- code-level checks added after the held-out evaluation ----
+
+def test_statement_with_an_invented_number_is_dropped(monkeypatch, make_article):
+    install(monkeypatch, [make_article("news-1", "Sensex jumps over 500 points")], reply([
+        {"text": "According to Pub, Sensex jumped over 800 points.", "evidence_ids": ["news-1"]}
+    ]))
+    r = svc.explain_claim(CLAIM, 5)
+    assert r.status == "insufficient_evidence"
+    assert r.dropped_statements == 1
+
+
+def test_number_that_comes_from_the_cited_article_is_allowed(monkeypatch, make_article):
+    install(monkeypatch, [make_article("news-1", "Sensex jumps over 500 points")], reply([
+        {"text": "According to Pub, Sensex jumped over 500 points.", "evidence_ids": ["news-1"]}
+    ]))
+    r = svc.explain_claim(CLAIM, 5)
+    assert r.status == "grounded"
+    assert r.dropped_statements == 0
+
+
+def test_number_that_comes_from_the_claim_is_allowed(monkeypatch, make_article):
+    install(monkeypatch, [make_article("news-1", "Sensex rises")], reply([
+        {"text": "The claim says 500 points, but Pub reports a rise without a figure.", "evidence_ids": ["news-1"]}
+    ]))
+    assert svc.explain_claim(CLAIM, 5).status == "grounded"
+
+
+def test_differences_are_added_by_code_when_numbers_differ(monkeypatch, make_article):
+    install(monkeypatch, [make_article("news-1", "Jupiter Wagons shares rally 8% on order")], reply([
+        {"text": "The claim says 20%, but Pub reports 8%.", "evidence_ids": ["news-1"]}
+    ]))
+    r = svc.explain_claim("Jupiter Wagons shares rally 20% on order", 5)
+    assert r.status == "grounded"
+    assert any("20%" in d for d in r.differences)
+
+
+def test_differences_flag_opposite_direction(monkeypatch, make_article):
+    install(monkeypatch, [make_article("news-1", "Sensex, Nifty rise in early trade")], reply([
+        {"text": "Pub reports that they rose.", "evidence_ids": ["news-1"]}
+    ]))
+    r = svc.explain_claim("Sensex and Nifty fall early in trade", 5)
+    assert any("fall" in d and "rise" in d for d in r.differences)
+
+
+def test_matching_claim_has_no_differences(monkeypatch, make_article):
+    install(monkeypatch, [make_article("news-1", "Sensex jumps 500 points after Fed holds rates")], reply([
+        {"text": "Pub reports a jump of 500 points.", "evidence_ids": ["news-1"]}
+    ]))
+    assert svc.explain_claim(CLAIM, 5).differences == []
+
+
+def test_refusal_has_no_differences(monkeypatch, make_article):
+    install(monkeypatch, [make_article("news-1")], reply([], "Nothing addresses the claim."))
+    assert svc.explain_claim(CLAIM, 5).differences == []

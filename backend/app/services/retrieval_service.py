@@ -6,15 +6,17 @@ financial articles for the closest matches by meaning (not keyword overlap).
 Two-part lazy loading, same pattern as sentiment/credibility services:
 - the embedding model loads once, cached
 - the Chroma collection connects once, cached
-Both stay empty/absent until ingest_corpus.py has been run to populate
-the vector store - that's a separate one-time step, not part of a request.
+
+chromadb and sentence-transformers are imported inside _ensure_loaded, so importing this
+module (for example in unit tests) does not need them.
+
+Self-matches: if the claim is already an indexed headline, that article is the best
+possible evidence, so the product KEEPS it. Benchmarks that must not count a query
+retrieving itself pass exclude_self=True.
 """
 import os
 import re
 import threading
-
-from chromadb import PersistentClient
-from sentence_transformers import SentenceTransformer
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -22,7 +24,7 @@ from app.schemas.retrieval import SimilarArticleResult, SimilarArticlesResponse
 
 logger = get_logger(__name__)
 
-NEAR_DUPLICATE_THRESHOLD = 0.97  # design choice, not tuned on data yet
+NEAR_DUPLICATE_THRESHOLD = 0.97  # only used when exclude_self=True; not tuned on data
 
 
 def _normalize(s: str) -> str:
@@ -31,7 +33,7 @@ def _normalize(s: str) -> str:
 
 class RetrievalService:
     def __init__(self) -> None:
-        self._embedder: SentenceTransformer | None = None
+        self._embedder = None
         self._collection = None
         self._lock = threading.Lock()
 
@@ -45,6 +47,9 @@ class RetrievalService:
         with self._lock:
             if self._embedder is not None and self._collection is not None:
                 return
+
+            from chromadb import PersistentClient
+            from sentence_transformers import SentenceTransformer
 
             logger.info(f"Loading embedding model '{settings.EMBEDDING_MODEL_NAME}'...")
             self._embedder = SentenceTransformer(settings.EMBEDDING_MODEL_NAME)
@@ -66,12 +71,12 @@ class RetrievalService:
             logger.info(f"Vector store loaded with {collection.count()} articles.")
             self._collection = collection
 
-    def find_similar(self, text: str, top_k: int) -> SimilarArticlesResponse:
+    def find_similar(self, text: str, top_k: int, exclude_self: bool = False) -> SimilarArticlesResponse:
         self._ensure_loaded()
 
         query_embedding = self._embedder.encode([text]).tolist()
 
-        # Ask for extra results so we can drop duplicates and still return top_k.
+        # Ask for extra results so removed duplicates do not shrink the list below top_k.
         results = self._collection.query(
             query_embeddings=query_embedding,
             n_results=top_k + 5,
@@ -84,21 +89,27 @@ class RetrievalService:
 
         query_norm = _normalize(text)
         matches = []
-        excluded = 0
+        removed = 0
+        seen_titles = set()
 
         for article_id, doc, meta, distance in zip(ids, docs, metadatas, distances):
             # Chroma returns cosine DISTANCE (0 = identical); convert to similarity.
             similarity = round(max(1.0 - distance, 0.0), 4)
             title = meta.get("title", "Untitled")
+            key = _normalize(title)
 
-            # Skip the query itself and near-duplicates of it.
-            if (
-                _normalize(title) == query_norm
-                or _normalize(doc) == query_norm
-                or similarity >= NEAR_DUPLICATE_THRESHOLD
+            # Benchmarks only: do not let a query retrieve itself.
+            if exclude_self and (
+                key == query_norm or _normalize(doc) == query_norm or similarity >= NEAR_DUPLICATE_THRESHOLD
             ):
-                excluded += 1
+                removed += 1
                 continue
+
+            # The same headline indexed twice is shown once.
+            if key in seen_titles:
+                removed += 1
+                continue
+            seen_titles.add(key)
 
             matches.append(
                 SimilarArticleResult(
@@ -114,7 +125,7 @@ class RetrievalService:
             if len(matches) == top_k:
                 break
 
-        return SimilarArticlesResponse(results=matches, excluded_duplicates=excluded)
+        return SimilarArticlesResponse(results=matches, excluded_duplicates=removed)
 
 
 retrieval_service = RetrievalService()
