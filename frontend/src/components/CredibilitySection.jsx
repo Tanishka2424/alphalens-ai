@@ -1,43 +1,55 @@
 import ResultCard from './ResultCard'
-import StampBadge from './StampBadge'
 
-const COLOR_FOR_BUCKET = { 'Reliable': 'ledger', 'Needs Verification': 'amber', 'High Risk': 'red' }
+function level(score) {
+  if (!score) return 'None found'
+  if (score < 0.34) return 'Low'
+  if (score < 0.67) return 'Medium'
+  return 'High'
+}
+
+function Meter({ label, score, reasons }) {
+  return (
+    <div className="mb-4">
+      <p className="flex justify-between font-semibold">
+        <span>{label}</span>
+        <span>{level(score)}</span>
+      </p>
+      <div className="h-3 bg-line my-1" role="img" aria-label={`${label}: ${level(score)}`}>
+        <div className="h-3 bg-teal" style={{ width: `${Math.max(Math.round(score * 100), score ? 4 : 0)}%` }} />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {reasons.map((r) => (
+          <span key={r} className="border-2 border-teal px-2 text-xs font-semibold">{r}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function CredibilitySection({ status, error, data }) {
+  const cb = data?.clickbait
+  const em = data?.emotional_language
+  const src = data?.source_context
+  const cbReasons = cb
+    ? [
+        ...(cb.matched_phrases ?? []),
+        ...(cb.excessive_caps ? ['Excessive capital letters'] : []),
+        ...(cb.excessive_punctuation ? ['Excessive punctuation'] : []),
+      ]
+    : []
+
   return (
-    <ResultCard eyebrow="Credibility Check" status={status} error={error}>
+    <ResultCard title="How it is written" status={status} error={error}>
       {data && (
-        <div>
-          <div className="flex flex-wrap items-center gap-4 mb-5">
-            <StampBadge label={data.action_bucket} color={COLOR_FOR_BUCKET[data.action_bucket]} />
-            <span className="font-mono-data text-sm text-[var(--color-card-ink-soft)]">
-              risk score {data.risk_score.toFixed(2)}
-            </span>
-          </div>
-
-          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-[var(--color-card-ink-soft)]">Classifier</dt>
-              <dd className="font-mono-data mt-0.5 text-[var(--color-card-ink)]">{data.classifier.label} ({(data.classifier.confidence * 100).toFixed(0)}%)</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-[var(--color-card-ink-soft)]">Clickbait</dt>
-              <dd className="font-mono-data mt-0.5 text-[var(--color-card-ink)]">{data.clickbait.score.toFixed(2)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-[var(--color-card-ink-soft)]">Emotional language</dt>
-              <dd className="font-mono-data mt-0.5 text-[var(--color-card-ink)]">{data.emotional_language.score.toFixed(2)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-[var(--color-card-ink-soft)]">Source</dt>
-              <dd className="font-mono-data mt-0.5 text-[var(--color-card-ink)]">{data.source_reputation.tier}</dd>
-            </div>
-          </dl>
-
-          <p className="mt-5 text-xs text-[var(--color-card-ink-soft)] italic font-display">
-            {data.disclaimer}
+        <>
+          <Meter label="Clickbait wording" score={cb.score} reasons={cbReasons} />
+          <Meter label="Emotional language" score={em.score} reasons={em.matched_words ?? []} />
+          <p className="font-semibold">Source: {src.tier}</p>
+          {src.resolved_domain && <p className="text-sm text-teal-soft">{src.resolved_domain}</p>}
+          <p className="mt-3 text-sm text-teal-soft">
+            Writing-style hints only. They say nothing about whether a claim is true, and a source that is not in our list is not necessarily unreliable.
           </p>
-        </div>
+        </>
       )}
     </ResultCard>
   )

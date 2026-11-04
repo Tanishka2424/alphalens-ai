@@ -11,11 +11,10 @@ class SourceReputationRequest(BaseModel):
 
 
 class SourceReputationResponse(BaseModel):
-    tier: str = Field(..., description="'Reputable' (on our curated allowlist) or 'Unverified'.")
+    tier: str = Field(
+        ..., description="'Known outlet' (on our curated list) or 'Not in our list'. Not a reliability judgment."
+    )
     resolved_domain: str | None = Field(default=None, description="Domain extracted from the URL, if provided.")
     matched_via: str | None = Field(
         default=None, description="Whether the match came from 'url', 'source_name', or None."
-    )
-    risk_score: float = Field(
-        ..., ge=0.0, le=1.0, description="0 = reputable/verified, higher = unverified source."
     )

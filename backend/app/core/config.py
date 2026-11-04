@@ -1,11 +1,3 @@
-"""
-Centralized application configuration.
-
-All environment-dependent values live here and nowhere else in the codebase.
-This is what makes the app config-driven instead of hardcoded, and it's the
-first thing an interviewer will ask about if they see os.environ scattered
-through the code instead.
-"""
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,23 +12,25 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    # Browser origins allowed to call the API (comma-separated). Add your frontend URL here.
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+
     # ML model identifiers (HuggingFace hub IDs)
     # FinBERT (Phase 1)
     FINBERT_MODEL_NAME: str = "ProsusAI/finbert"
 
-    # Credibility classifier (Phase 2) - local fine-tuned checkpoint, not a
-    # Hugging Face hub model. Path is relative to the backend/ working dir.
-    CREDIBILITY_MODEL_PATH: str = "training/checkpoints/credibility_classifier"
+    
     # Semantic retrieval (Phase 3)
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
     VECTOR_STORE_PATH: str = "training/vector_store"
     # Inference device: "cpu" or "cuda"
     DEVICE: str = "cpu"
-    # Consensus reasoning (Phase 4)
-    # Consensus reasoning (Phase 4)
+    
+    # LLM for grounded explanations (any OpenAI-compatible provider, e.g. Groq).
+    # No defaults on purpose: set all three in backend/.env.
     OPENAI_API_KEY: str | None = None
-    OPENAI_MODEL_NAME: str = "gpt-4o-mini"
-    OPENAI_BASE_URL: str | None = None  # set to use an OpenAI-compatible provider (e.g. Groq) instead
+    OPENAI_MODEL_NAME: str | None = None
+    OPENAI_BASE_URL: str | None = None
 
 
 # Singleton settings instance imported everywhere else

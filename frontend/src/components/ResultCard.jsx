@@ -1,23 +1,15 @@
-export default function ResultCard({ eyebrow, status, error, children }) {
+export default function ResultCard({ step, title, status, error, children }) {
   return (
-    <div className="fade-up bg-[var(--color-card)] border border-[var(--color-card-line)] rounded-xl p-6 sm:p-8 shadow-lg shadow-black/20">
-      <h3 className="font-mono-data text-xs uppercase tracking-widest text-[var(--color-card-ink-soft)] mb-4">
-        {eyebrow}
-      </h3>
-
-      {status === 'idle' && (
-        <p className="text-sm text-[var(--color-card-ink-soft)] italic">Waiting for an article to analyze.</p>
-      )}
-      {status === 'loading' && (
-        <div className="flex items-center gap-2 text-sm text-[var(--color-card-ink-soft)]">
-          <span className="inline-block h-2 w-2 rounded-full bg-[var(--color-brass)] animate-pulse" />
-          Running...
-        </div>
-      )}
+    <section className="fade-up bg-cream text-teal border-t-[6px] border-teal p-6 mb-6">
+      <h2 className="flex items-baseline gap-3 mb-4">
+        {step && <span className="font-display text-5xl leading-none">{step}</span>}
+        <span className="text-xl font-semibold">{title}</span>
+      </h2>
+      {status === 'loading' && <p className="text-teal-soft">Working on it...</p>}
       {status === 'error' && (
-        <p className="text-sm text-[var(--color-risk-red)]">Couldn't complete this check: {error}</p>
+        <p role="alert" className="font-semibold">Couldn't complete this check: {error}</p>
       )}
       {status === 'done' && children}
-    </div>
+    </section>
   )
 }

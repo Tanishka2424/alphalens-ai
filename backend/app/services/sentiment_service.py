@@ -44,9 +44,8 @@ class SentimentService:
 
     def _ensure_loaded(self) -> None:
         """Lazy-load the model on first use, not at import time. Thread-safe:
-        this singleton is shared between /sentiment/analyze and the
-        consensus fallback path, which can be called concurrently from the
-        frontend's parallel requests - a race here caused a real crash in
+        this singleton can be called concurrently from the frontend's
+        parallel requests - a race here caused a real crash in
         the sibling retrieval_service, fixed the same way here."""
         if self._model is not None:
             return

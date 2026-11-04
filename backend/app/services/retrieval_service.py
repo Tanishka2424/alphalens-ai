@@ -6,14 +6,17 @@ financial articles for the closest matches by meaning (not keyword overlap).
 Two-part lazy loading, same pattern as sentiment/credibility services:
 - the embedding model loads once, cached
 - the Chroma collection connects once, cached
-Both stay empty/absent until ingest_corpus.py has been run to populate
-the vector store - that's a separate one-time step, not part of a request.
+
+chromadb and sentence-transformers are imported inside _ensure_loaded, so importing this
+module (for example in unit tests) does not need them.
+
+Self-matches: if the claim is already an indexed headline, that article is the best
+possible evidence, so the product KEEPS it. Benchmarks that must not count a query
+retrieving itself pass exclude_self=True.
 """
 import os
+import re
 import threading
-
-from chromadb import PersistentClient
-from sentence_transformers import SentenceTransformer
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -21,10 +24,16 @@ from app.schemas.retrieval import SimilarArticleResult, SimilarArticlesResponse
 
 logger = get_logger(__name__)
 
+NEAR_DUPLICATE_THRESHOLD = 0.97  # only used when exclude_self=True; not tuned on data
+
+
+def _normalize(s: str) -> str:
+    return re.sub(r"\W+", " ", s.lower()).strip()
+
 
 class RetrievalService:
     def __init__(self) -> None:
-        self._embedder: SentenceTransformer | None = None
+        self._embedder = None
         self._collection = None
         self._lock = threading.Lock()
 
@@ -33,17 +42,14 @@ class RetrievalService:
         if self._embedder is not None and self._collection is not None:
             return
 
-        # Slow path: only one thread should actually do the loading. Two
-        # concurrent requests (e.g. /retrieval/similar-articles and
-        # /consensus/analyze firing at the same time from the frontend)
-        # both hitting this method for the first time is exactly what
-        # caused a real crash in testing - ChromaDB's client isn't safe
-        # to initialize from two threads at once for the same path.
+        # Slow path: only one thread should do the loading (ChromaDB's client
+        # is not safe to initialize from two threads at once for the same path).
         with self._lock:
-            # Re-check inside the lock: another thread may have already
-            # finished loading while this thread was waiting for the lock.
             if self._embedder is not None and self._collection is not None:
                 return
+
+            from chromadb import PersistentClient
+            from sentence_transformers import SentenceTransformer
 
             logger.info(f"Loading embedding model '{settings.EMBEDDING_MODEL_NAME}'...")
             self._embedder = SentenceTransformer(settings.EMBEDDING_MODEL_NAME)
@@ -65,35 +71,61 @@ class RetrievalService:
             logger.info(f"Vector store loaded with {collection.count()} articles.")
             self._collection = collection
 
-    def find_similar(self, text: str, top_k: int) -> SimilarArticlesResponse:
+    def find_similar(self, text: str, top_k: int, exclude_self: bool = False) -> SimilarArticlesResponse:
         self._ensure_loaded()
 
         query_embedding = self._embedder.encode([text]).tolist()
 
+        # Ask for extra results so removed duplicates do not shrink the list below top_k.
         results = self._collection.query(
             query_embeddings=query_embedding,
-            n_results=top_k,
+            n_results=top_k + 5,
         )
 
-        matches = []
+        ids = results.get("ids", [[]])[0]
         docs = results.get("documents", [[]])[0]
         metadatas = results.get("metadatas", [[]])[0]
         distances = results.get("distances", [[]])[0]
 
-        for doc, meta, distance in zip(docs, metadatas, distances):
-            # Chroma returns cosine DISTANCE (0=identical); convert to a
-            # similarity score (1=identical) for a more intuitive API response.
+        query_norm = _normalize(text)
+        matches = []
+        removed = 0
+        seen_titles = set()
+
+        for article_id, doc, meta, distance in zip(ids, docs, metadatas, distances):
+            # Chroma returns cosine DISTANCE (0 = identical); convert to similarity.
             similarity = round(max(1.0 - distance, 0.0), 4)
+            title = meta.get("title", "Untitled")
+            key = _normalize(title)
+
+            # Benchmarks only: do not let a query retrieve itself.
+            if exclude_self and (
+                key == query_norm or _normalize(doc) == query_norm or similarity >= NEAR_DUPLICATE_THRESHOLD
+            ):
+                removed += 1
+                continue
+
+            # The same headline indexed twice is shown once.
+            if key in seen_titles:
+                removed += 1
+                continue
+            seen_titles.add(key)
+
             matches.append(
                 SimilarArticleResult(
-                    title=meta.get("title", "Untitled"),
+                    article_id=str(article_id),
+                    title=title,
                     snippet=doc[:300],
                     source=meta.get("source"),
+                    url=meta.get("url"),
+                    published_at=meta.get("published_at"),
                     similarity_score=similarity,
                 )
             )
+            if len(matches) == top_k:
+                break
 
-        return SimilarArticlesResponse(results=matches)
+        return SimilarArticlesResponse(results=matches, excluded_duplicates=removed)
 
 
 retrieval_service = RetrievalService()
