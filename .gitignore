@@ -40,3 +40,13 @@ backend/evaluation/explain_results.json
 backend/evaluation/explain_results_v1_before.json
 
 backend/evaluation/explain_results*.json
+
+articles.db
+vector_store_backup/
+claims_heldout*.json
+retrieval_eval_*
+backend/evaluation/claims_heldout*.json
+backend/evaluation/explain_results_heldout*.json
+backend/training/articles.db
+backend/training/vector_store_backup/
+backend/retrieval_eval_*
