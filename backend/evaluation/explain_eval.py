@@ -80,6 +80,10 @@ def label() -> None:
             continue
         print("\n" + "=" * 70)
         print(f"CLAIM #{item['id']} [{item['category']}]: {item['claim']}")
+        if item.get("differences"):
+            print("DIFFERENCES BOX (shown to the user by the product):")
+            for d in item["differences"]:
+                  print("   -", d)
         for s in item["statements"]:
             print(f"\nSTATEMENT: {s['text']}")
             for eid in s["evidence_ids"]:
@@ -100,7 +104,8 @@ def label() -> None:
         ans = ""
         while ans not in {"ok", "bad", "q"}:
             ans = input(
-                "OVERALL  ok = answer is fine (matches the claim, or clearly says it differs)\n"
+                "OVERALL  (judge the statements AND the differences box together)\n"
+                "         ok = answer is fine (matches the claim, or clearly says it differs)\n"
                 "         bad = answer makes the claim look supported but the articles show a different number/direction/event\n"
                 "         q = save & quit  : "
             ).strip().lower()

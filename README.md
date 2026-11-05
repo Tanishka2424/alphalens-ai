@@ -2,25 +2,25 @@
 
 A portfolio project built while preparing for AI engineering placements. You paste a financial headline or claim, and AlphaLens explains it **using only articles it actually retrieved**, with the publisher, date and link for each one. It also shows the market tone and how the text is written.
 
-> **Version note.** This README describes **V2** (branch `feat/evidence-grounded-v2`). The older V1 design combined a fake-news classifier and a composite credibility score. V2 removes both. See [What changed from V1](#what-changed-from-v1-and-why).
+> **Version note.** This README describes **V2**, which is merged into `main`. The older V1 design combined a fake-news classifier and a composite credibility score. V2 removes both. V1 is preserved as the git tag `v1-final`, and its demo site has been taken offline. See [What changed from V1](#what-changed-from-v1-and-why).
 
 **What it is not:** a fact-checker, trading advice, or an alert service. It never says a claim is true or false. Related articles are context, not confirmation.
 
 ## Screenshots
 
-| Landing | Claim that differs from the article |
+| Landing | A claim that differs from the article (1) |
 |---|---|
-| ![Landing](docs/screenshots/Landing.png) | ![Mismatch](docs/screenshots/demo_mismatch1.png) |
+| ![Landing](docs/screenshots/Landing.png) | ![Mismatch 1](docs/screenshots/demo_mismatch1.png) |
 
-| Differences box | Refuses when evidence is missing |
+| A claim that differs from the article (2) | Refuses when evidence is missing |
 |---|---|
-| ![Differences](docs/screenshots/demo_mismatch2.png) | ![Refusal](docs/screenshots/demo_refusal.png) |
+| ![Mismatch 2](docs/screenshots/demo_mismatch2.png) | ![Refusal](docs/screenshots/demo_refusal.png) |
 
 ## What it does
 
 For each headline or claim you submit:
 
-1. **Explanation.** 1 to 3 short statements, each citing the articles it came from. A "cited article" is a retrieved item (its headline and short snippet, not the full text) that a statement relies on. If nothing relevant is found, it says so instead of guessing.
+1. **Explanation.** 1 to 3 short statements, each citing the articles it came from. A "cited article" is a retrieved item (its headline and short snippet, not the full text) that a statement relies on. If nothing relevant is found, it says so instead of guessing. Differences between your claim and the cited text (numbers, rise/fall) are listed separately, found by code.
 2. **Evidence.** The cited articles, with publisher, date, link and a similarity score. Items with no date are tagged as undated archive headlines.
 3. **Market tone.** FinBERT label (Bullish, Bearish, Neutral) with model scores. These are softmax scores, not calibrated probabilities.
 4. **Writing signals.** Clickbait wording and emotional language, each with the phrases that triggered it, plus a limited source-context note (known outlet or not in our list). A source that is not in our list is not treated as unreliable.
@@ -106,22 +106,62 @@ A development check on **20 hand-written claims**: 9 covered by indexed articles
 - One person wrote and labeled the claims, with AI-assisted guidance during labeling.
 - Most items are headline-length, so many statements restate the headline. The value here is traceability and mismatch flagging, not deeper analysis.
 - The first version of the check looked perfect on counts (9/9, 5/5) while reading the outputs showed padding from old headlines and wrongly attributed sources. That led to statement-level labeling and the fixes listed on the Evaluation page.
-- A held-out set of new claims, run once with no tuning, is planned. Retrieval quality has not been benchmarked yet.
+- Held-out results are in the next section.
 
 ### Held-out evaluation
 
-To get numbers that were not tuned on, claims are generated from recent indexed articles: a paraphrase of each headline (the source article is the known right answer), a version with one fact changed, and 20 fixed off-topic claims. The claim file is reviewed once and then frozen (its hash is stored with the results), and the system is run on it **once**. Known-item retrieval, off-topic refusal and citation validity are scored automatically. Whether statements are supported is hand-labeled on a random sample.
+To get numbers that were not tuned on, claims were generated from recent indexed articles: a paraphrase of each headline (the source article is the known right answer), a version with one fact changed, and 20 fixed off-topic claims. Each claim file was reviewed once, then frozen (its hash is stored with the results) and run once. Known-item retrieval, off-topic refusal and citation validity are scored automatically. Whether statements are supported was hand-labeled on a random sample of 30 answers.
 
-Held-out results are not published yet. The numbers above are from the 20-claim development check.
+| | v1 (before the fix) | v2 (after the fix) |
+|---|---|---|
+| Claims (paraphrased / altered / off-topic) | 26 / 26 / 20 | 28 / 28 / 20 |
+| Known-item Recall@5, paraphrased claims | 92% (MRR 0.90) | 100% (MRR 0.97) |
+| Known-item Recall@5, altered claims | 23% (MRR 0.23) | 100% (MRR 0.98) |
+| Off-topic claims refused | 20 / 20 | 20 / 20 |
+| Altered claims answered | 9 / 26 | 27 / 28 |
+| Hand-labeled statements: supported / partly / not supported | 35 / 7 / 0 of 42 \* | 46 / 2 / 0 of 48 † |
+| Answers that presented a mismatched claim as confirmed (sample of 30) | 4 / 30 \* | 0 / 30 |
+| Explanation latency, median / 95th percentile | 1.5 s / 13.5 s \*\* | 1.6 s / 3.6 s |
 
-Limits of this set: the claims are written by an LLM of the same family as the explainer, so paraphrases may be easier than real user claims, and labels come from one person.
+\* After correcting 2 labels that broke the labeling rule ("does the cited text say this?"). As first labeled, v1 was 32 / 7 / 3 and 6 / 30.
 
-Run the development check yourself (the labeling step is interactive):
+† After correcting 1 label (claim 10, statement 1) for the same reason: the cited text and publisher did say what the statement said. As first labeled, v2 was 45 / 2 / 1.
+
+\*\* The v1 tail includes waits caused by provider rate limits.
+
+All corrections are reported on purpose, and no other label was changed.
+
+**What the first run found.** Altered claims (one fact changed) rarely retrieved their source article. A diagnostic showed the source article was the top raw match for 25 of 26 altered claims, but a near-duplicate filter, written to keep benchmark queries from retrieving themselves, removed it in 20 of them. In the product this meant that pasting a headline that was already indexed discarded that exact article. The filter now applies only to benchmarks. Three code-level checks were added: statements containing a number found in neither the claim nor the cited text are dropped, differences between the claim and the cited headline or snippet (numbers, rise/fall, likely/unlikely, hike/cut) are listed by code, and two prompt rules were tightened.
+
+**What the second run showed.** On a fresh claim set (new articles, financial headlines only, none used in v1), the code listed a difference for 13 of 27 answered altered claims and for 0 of 27 faithful paraphrases. Where an altered number could be checked, the answer mentioned the real number in 9 of 9 cases.
+
+**Limits of these numbers:**
+
+- Claims were written by an LLM of the same family as the explainer, and paraphrases of an indexed headline are easier than real user claims. "Recall@5" here means known-item search, not general retrieval quality.
+- The hand-labeled sample is 30 answers (48 statements), labeled by one person who also built the system. With 0 of 30 overclaims, the true rate could still be around 10%.
+- v2 is not a controlled comparison with v1: different articles, a financial-only filter and a different seed. The code and prompt were changed between runs because of v1 failures, but the v2 claims were not looked at before the run.
+- One claim in each run failed with an LLM error and counts as a failure.
+- The code checks do not catch wording-only changes such as "similar" vs "different" or "Shares" vs "Receipts".
+- Claim files and results contain licensed headline text, so they are not committed.
+
+### Reproduce the evaluations
+
+Run from `backend/`. Claim files and results are gitignored.
 
 ```
-cd backend
+# Development check (20 hand-written claims; the labeling step is interactive)
 python evaluation/explain_eval.py run
 python evaluation/explain_eval.py label
+
+# Held-out set (PowerShell shown; HELDOUT_TAG selects a separate claim set)
+$env:HELDOUT_TAG = "_v2"; $env:HELDOUT_SEED = "11"
+python evaluation/build_heldout.py 30      # generate claims from recent articles
+python evaluation/drop_claims.py list      # review, remove non-financial items, then freeze
+python evaluation/run_heldout.py           # run once; resumable after a rate limit
+$env:EXPLAIN_RESULTS = "evaluation/explain_results_heldout_v2.json"
+python evaluation/explain_eval.py label    # hand-label a sample
+python evaluation/heldout_report.py        # breakdown by claim type, and the failures
+python evaluation/latency.py               # per-stage timing
 ```
 
 ## Tests and CI
@@ -181,11 +221,11 @@ Place the SEntFiN CSV at `backend/training/data/SEntFiN-v1.1.csv` first. The vec
 
 ## Limitations
 
-- Retrieval is a small sentence-embedding model over short headlines. It can rank by shared wording instead of meaning, and it has not been benchmarked with independent queries.
+- Retrieval is a small sentence-embedding model over short headlines. It can rank by shared wording instead of meaning, and it was only tested as known-item search (paraphrases and edits of indexed headlines), not on independent real-world queries.
 - The corpus skews toward Indian markets, and SEntFiN items carry no dates, so they are never used on their own to explain a current claim. As a result, a claim about an old event is refused if only old headlines exist.
 - The code checks catch changed numbers and opposite words, not subtle wording changes such as "Shares" vs "Receipts".
 - The explainer sometimes restates a headline. It cannot check facts beyond what the retrieved articles say, and with one source it reports that one source.
-- The evaluation is small, author-labeled, and tuned on, as described above.
+- The evaluations are small and author-labeled, and the development check was tuned on, as described above.
 - There is no way yet to rebuild the vector index from SQLite in one command, which is planned.
 - No authentication, accounts or multi-user support, by design.
 
@@ -194,9 +234,10 @@ Place the SEntFiN CSV at `backend/training/data/SEntFiN-v1.1.csv` first. The vec
 ```
 backend/app/        FastAPI app: api/, schemas/, services/ (sentiment, retrieval, explanation, signals)
 backend/training/   article store and ingestion scripts (SQLite, RSS, NewsAPI)
-backend/evaluation/ explainer evaluation script
+backend/evaluation/ evaluation, review and latency scripts
 backend/tests/      pytest suite
 frontend/src/       React + Vite + Tailwind: pages/, components/
+docs/screenshots/   README images
 .github/workflows/  CI
 ```
 

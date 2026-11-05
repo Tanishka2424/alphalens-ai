@@ -44,7 +44,7 @@ def pct(xs, p):
 
 def process(c: dict, sha: str, explain_claim, retrieval_service) -> dict:
     item = {**c, "status": "error", "statements": [], "evidence": {}, "dropped": 0, "error": None,
-            "rank": None, "cited_target": False, "t_retrieval_ms": None, "t_explain_ms": None,
+            "rank": None, "differences": [], "cited_target": False, "t_retrieval_ms": None, "t_explain_ms": None,
             "claims_sha256": sha}
     for attempt in range(4):
         try:
@@ -58,7 +58,7 @@ def process(c: dict, sha: str, explain_claim, retrieval_service) -> dict:
             item["t_explain_ms"] = round((time.perf_counter() - t0) * 1000, 1)
             item.update(status=r.status, statements=[s.model_dump() for s in r.statements],
                         evidence={e.article_id: e.model_dump() for e in r.evidence},
-                        dropped=r.dropped_statements, error=None)
+                        dropped=r.dropped_statements, differences=r.differences, error=None)
             item["cited_target"] = bool(c.get("target_id")) and c["target_id"] in item["evidence"]
             return item
         except Exception as e:
@@ -99,6 +99,14 @@ def summarize(results: list, sha: str) -> None:
     print(f"Target article cited (covered): {sum(r['cited_target'] for r in cov)}/{len(cov)}")
     print(f"Off-topic refused:              {sum(r['status'] == 'insufficient_evidence' for r in off)}/{len(off)}")
     print(f"Altered answered 'grounded':    {sum(r['status'] == 'grounded' for r in alt)}/{len(alt)}")
+    answered_alt = [r for r in alt if r["status"] == "grounded"]
+    if answered_alt:
+        flagged = sum(1 for r in answered_alt if r.get("differences"))
+        print(f"Altered answered, with a difference listed by code: {flagged}/{len(answered_alt)}")
+    answered_cov = [r for r in cov if r["status"] == "grounded"]
+    if answered_cov:
+        alarms = sum(1 for r in answered_cov if r.get("differences"))
+        print(f"Covered answered, with a difference listed (possible false alarm): {alarms}/{len(answered_cov)}")
     if proxy:
         print(f"Altered, answer mentions the real number (rough proxy): {sum(proxy)}/{len(proxy)}")
     print(f"Statements dropped by citation check: {sum(r['dropped'] for r in results)}")
